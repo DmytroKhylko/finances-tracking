@@ -49,10 +49,14 @@ def process_xml(xml_path, output_dir):
     for p in c.findall("P"):
         name = p.attrib.get("NM", "")
 
-        # Price (PRC) in kopecks → UAH
-        unit_price = float(p.attrib.get("PRC", "0")) / 100
+        # Price logic:
+        # Use PRC (unit price) if present, otherwise SM (total)
+        if "PRC" in p.attrib:
+            unit_price = float(p.attrib["PRC"]) / 100
+        else:
+            unit_price = float(p.attrib["SM"]) / 100  # fallback
 
-        # Quantity
+        # Quantity logic:
         qty_raw = p.attrib.get("Q")
         quantity = float(qty_raw) / 1000 if qty_raw else 1
 
@@ -87,11 +91,7 @@ def process_xml(xml_path, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Parse fiscal XML checks and output CSV/TSV.")
-    parser.add_argument(
-        "--check",
-        required=True,
-        help="Directory with XML check files"
-    )
+    parser.add_argument("--check", required=True, help="Directory with XML check files")
     args = parser.parse_args()
 
     input_dir = args.check
