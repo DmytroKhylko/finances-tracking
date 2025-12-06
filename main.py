@@ -1,6 +1,6 @@
+import argparse
 import csv
 import os
-import argparse
 import xml.etree.ElementTree as ET
 from datetime import datetime
 
@@ -19,9 +19,11 @@ FIELDS = [
     "currency",
 ]
 
+
 def parse_ts(ts):
     dt = datetime.strptime(ts, "%Y%m%d%H%M%S")
     return dt.strftime("%Y-%m-%d"), dt.strftime("%H:%M:%S")
+
 
 def write_file(filename, rows, delimiter):
     with open(filename, "w", newline="", encoding="utf-8") as f:
@@ -29,15 +31,23 @@ def write_file(filename, rows, delimiter):
         writer.writeheader()
         writer.writerows(rows)
 
+
 def process_xml(xml_path, output_dir):
     tree = ET.parse(xml_path)
     root = tree.getroot()
 
     dat = root.find("DAT")
-    c = dat.find("C")
+    if dat is None:
+        raise ValueError(f"Missing <DAT> in {xml_path}")
 
-    # Metadata from <E>
+    c = dat.find("C")
+    if c is None:
+        raise ValueError(f"Missing <C> inside DAT in {xml_path}")
+
     e = c.find("E")
+    if e is None:
+        raise ValueError(f"Missing <E> inside C in {xml_path}")
+
     ts = e.attrib["TS"]
     check_number = os.path.splitext(os.path.basename(xml_path))[0]
     fiscal_number = e.attrib.get("FN") or dat.attrib.get("FN", "")
@@ -49,16 +59,14 @@ def process_xml(xml_path, output_dir):
     for p in c.findall("P"):
         name = p.attrib.get("NM", "")
 
-        # Price logic:
-        # Use PRC (unit price) if present, otherwise SM (total)
         if "PRC" in p.attrib:
-            unit_price = float(p.attrib["PRC"]) / 100
+            price_int = int(p.attrib["PRC"])  # in kopecks
         else:
-            unit_price = float(p.attrib["SM"]) / 100  # fallback
+            price_int = int(p.attrib["SM"])  # in kopecks
 
-        # Quantity logic:
+        # Quantity as integer grams
         qty_raw = p.attrib.get("Q")
-        quantity = float(qty_raw) / 1000 if qty_raw else 1
+        quantity_int = int(qty_raw) if qty_raw else 1000  # 1000 g = 1 unit
 
         barcode = p.attrib.get("CD", "")
 
@@ -66,8 +74,8 @@ def process_xml(xml_path, output_dir):
             "date": date,
             "time": time,
             "product": name,
-            "price": unit_price,
-            "quantity": quantity,
+            "price": price_int,
+            "quantity": quantity_int,
             "barcode": barcode,
             "store": "",
             "description": "",
@@ -89,8 +97,11 @@ def process_xml(xml_path, output_dir):
 
     print(f"Processed: {xml_path} → {csv_path}, {tsv_path}")
 
+
 def main():
-    parser = argparse.ArgumentParser(description="Parse fiscal XML checks and output CSV/TSV.")
+    parser = argparse.ArgumentParser(
+        description="Parse fiscal XML checks and output CSV/TSV."
+    )
     parser.add_argument("--check", required=True, help="Directory with XML check files")
     args = parser.parse_args()
 
@@ -107,6 +118,7 @@ def main():
 
     for file in files:
         process_xml(os.path.join(input_dir, file), output_dir)
+
 
 if __name__ == "__main__":
     main()
