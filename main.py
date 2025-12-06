@@ -39,8 +39,8 @@ def process_xml(xml_path, output_dir):
     # Metadata from <E>
     e = c.find("E")
     ts = e.attrib["TS"]
-    check_number = e.attrib["NO"]
-    fiscal_number = e.attrib["FN"]
+    check_number = e.attrib.get("NO", "")
+    fiscal_number = e.attrib.get("FN", "")
 
     date, time = parse_ts(ts)
 
